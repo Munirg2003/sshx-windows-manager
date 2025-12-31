@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
+  <Product Id="*" Name="SSHX Manager"
+           Language="1033"
+           Version="1.0.0"
+           Manufacturer="YourName"
+           UpgradeCode="4e17e72c-ef9c-47ab-a039-0d7c58fc11ec">
+
+    <Package InstallerVersion="500" Compressed="yes" InstallScope="perMachine"/>
+
+    <MajorUpgrade DowngradeErrorMessage="A newer version is already installed."/>
+    <MediaTemplate/>
+
+    <Directory Id="TARGETDIR" Name="SourceDir">
+      <Directory Id="ProgramFilesFolder">
+        <Directory Id="INSTALLDIR" Name="sshx">
+	  <Component Id="MainComponent" Guid="4e17e72c-ef9c-47ab-a039-0d7c58fc11ec">
+	   <File Source="..\..\windows\sshx-manager.ps1"/>
+	   <File Source="..\..\windows\sshx-functions.psm1"/>
+	  </Component>
+        </Directory>
+      </Directory>
+    </Directory>
+    <Feature Id="MainFeature" Title="SSHX Manager" Level="1">
+      <ComponentRef Id="MainComponent"/>
+    </Feature>
+
+  </Product>
+</Wix>

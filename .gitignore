@@ -1,0 +1,14 @@
+# Windows
+*.log
+*.tmp
+
+# PowerShell transcripts
+transcript*.txt
+
+# Build artifacts
+packaging/windows/*.wixobj
+packaging/windows/*.wixpdb
+
+# OS noise
+.DS_Store
+Thumbs.db
