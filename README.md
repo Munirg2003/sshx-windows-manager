@@ -39,7 +39,7 @@ Security notes (read this first)
 
 Installation options (high-level)
 - Local execution: run the PowerShell script from disk with elevated Administrator privileges to use full features (scheduled task creation, Defender manipulation).
-- Remote one-line install: possible with the script’s web-ready entrypoint, but strongly advise verifying script contents and checksums before executing.
+- Remote one-line install: possible with the script's web-ready entrypoint, but strongly advise verifying script contents and checksums before executing. Execute from web with: `powershell -Command "iex (irm https://raw.githubusercontent.com/Munirg2003/SSHX-manager-MultiOS-v2/main/sshx-manager.ps1)"`
 - CI/packaging: package the manager into a signed release and attach the sshx archive as a release asset.
 
 Runtime behavior and design decisions preserved
