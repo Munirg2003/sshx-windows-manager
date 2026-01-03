@@ -33,6 +33,18 @@ chmod +x manage.sh
 
 ---
 
+### 🌐 Direct Execution (One-Line)
+Run the manager directly from the web without cloning the repository:
+
+| Platform | Command |
+|---|---|
+| **Windows** | `powershell -ExecutionPolicy Bypass -Command "iex (irm https://raw.githubusercontent.com/Munirg2003/SSHX-manager-MultiOS-v2/main/sshx-manager.ps1)"` |
+| **Linux** | `curl -sSfL https://raw.githubusercontent.com/Munirg2003/SSHX-manager-MultiOS-v2/main/linux/sshx-manager.sh \| sudo bash` |
+| **macOS** | `curl -sSfL https://raw.githubusercontent.com/Munirg2003/SSHX-manager-MultiOS-v2/main/macos/sshx-manager.zsh \| sudo zsh` |
+| **Android** | `curl -sSfL https://raw.githubusercontent.com/Munirg2003/SSHX-manager-MultiOS-v2/main/android/sshx-manager-termux.sh \| bash` |
+
+---
+
 ### Platform-Specific Execution
 
 ### 🪟 Windows
