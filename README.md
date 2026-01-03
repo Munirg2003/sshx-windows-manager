@@ -48,19 +48,16 @@ We would like to express our deepest gratitude to Ethan for developing such a tr
 
 ## 🚀 Getting Started
 
-### 🌐 Direct Execution (Fastest)
+### 🌐 Direct Execution (One-Line)
 
-Run the manager directly from the web without cloning:
+Run the manager instantly from your terminal without cloning the repository:
 
-**Windows (PowerShell Admin):**
-```powershell
-powershell -ExecutionPolicy Bypass -Command "iex (irm https://raw.githubusercontent.com/Munirg2003/SSHX-manager-MultiOS-v2/main/sshx-manager.ps1)"
-```
-
-**Linux / macOS / Android (Termux):**
-```bash
-curl -sSfL https://raw.githubusercontent.com/Munirg2003/SSHX-manager-MultiOS-v2/main/manage.sh | bash
-```
+| Platform | Production One-Line Command |
+|:---|:---|
+| **Windows** | `powershell -ExecutionPolicy Bypass -Command "iex (irm https://raw.githubusercontent.com/Munirg2003/SSHX-manager-MultiOS-v2/main/windows/sshx-manager.ps1)"` |
+| **Linux** | `curl -sSfL https://raw.githubusercontent.com/Munirg2003/SSHX-manager-MultiOS-v2/main/linux/sshx-manager.sh \| sudo bash` |
+| **macOS** | `curl -sSfL https://raw.githubusercontent.com/Munirg2003/SSHX-manager-MultiOS-v2/main/macos/sshx-manager.zsh \| sudo zsh` |
+| **Android** | `curl -sSfL https://raw.githubusercontent.com/Munirg2003/SSHX-manager-MultiOS-v2/main/android/sshx-manager-termux.sh \| bash` |
 
 ### 📦 Local Installation
 

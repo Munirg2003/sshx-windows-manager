@@ -327,13 +327,13 @@ function Add-SSHXScheduledTask {
     
     $state = Get-SSHXState
     if (!$state.IsInstalled) {
-        Write-Status "❌ SSHX not installed. Install first!" "ERROR"
+        Write-Status "[X] SSHX not installed. Install first!" "ERROR"
         return $false
     }
     
     $exePath = Join-Path $InstallDir "sshx.exe"
     if (!(Test-Path $exePath)) {
-        Write-Status "❌ SSHX executable not found!" "ERROR"
+        Write-Status "[X] SSHX executable not found!" "ERROR"
         return $false
     }
     
@@ -377,7 +377,7 @@ function Add-SSHXScheduledTask {
         }
     }
     catch {
-        Write-Status "❌ Failed to create scheduled task: $_" "ERROR"
+        Write-Status "[X] Failed to create scheduled task: $_" "ERROR"
         Write-Status "   Ensure you have permissions to create scheduled tasks" "WARNING"
         return $false
     }
