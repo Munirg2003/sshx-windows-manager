@@ -17,6 +17,24 @@ This project provides safe, robust management scripts that simplify the deployme
 
 ## Installation & Usage
 
+### 🚀 Universal Entry Point (Recommended)
+You can use the universal entry point to automatically detect your OS and launch the correct manager:
+
+**Unix-like (Linux, macOS, Android/Termux):**
+```bash
+chmod +x manage.sh
+./manage.sh
+```
+
+**Windows (PowerShell):**
+```powershell
+.\manage.ps1
+```
+
+---
+
+### Platform-Specific Execution
+
 ### 🪟 Windows
 Run the PowerShell script directly. It will automatically request required Administrator privileges and apply the necessary execution policy:
 ```powershell
