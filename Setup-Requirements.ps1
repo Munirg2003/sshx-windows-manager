@@ -1,7 +1,3 @@
-# SSHX-Manager Setup Requirements Script
-# This script verifies and installs all prerequisites needed to run sshx-manager.ps1
-# Run with Administrator privileges: powershell -ExecutionPolicy Bypass -File Setup-Requirements.ps1
-
 param(
     [switch]$SkipInteractive = $false,
     [switch]$InstallPowerShell7 = $false,
@@ -10,35 +6,44 @@ param(
 )
 
 # ============================================================================
+# SELF-ELEVATION
+# ============================================================================
+if (!([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
+    $argList = @("-NoProfile", "-ExecutionPolicy Bypass", "-NoExit", "-File", "`"$PSCommandPath`"")
+    Start-Process powershell -ArgumentList $argList -Verb RunAs
+    exit
+}
+
+# ============================================================================
 # COLOR AND LOGGING FUNCTIONS
 # ============================================================================
 
 function Write-Header {
     param([string]$Message)
     Write-Host "`n" -NoNewline
-    Write-Host "╔═══════════════════════════════════════════════════════════╗" -ForegroundColor Cyan
-    Write-Host "║ $Message$((' ' * (55 - $Message.Length)))║" -ForegroundColor Cyan
-    Write-Host "╚═══════════════════════════════════════════════════════════╝" -ForegroundColor Cyan
+    Write-Host "+-----------------------------------------------------------+" -ForegroundColor Cyan
+    Write-Host "| $Message$((' ' * (58 - $Message.Length)))|" -ForegroundColor Cyan
+    Write-Host "+-----------------------------------------------------------+" -ForegroundColor Cyan
 }
 
 function Write-Success {
     param([string]$Message)
-    Write-Host "✅ $Message" -ForegroundColor Green
+    Write-Host "[OK] $Message" -ForegroundColor Green
 }
 
 function Write-Warning {
     param([string]$Message)
-    Write-Host "⚠️  $Message" -ForegroundColor Yellow
+    Write-Host "(!) $Message" -ForegroundColor Yellow
 }
 
 function Write-Error {
     param([string]$Message)
-    Write-Host "❌ $Message" -ForegroundColor Red
+    Write-Host "[X] $Message" -ForegroundColor Red
 }
 
 function Write-Info {
     param([string]$Message)
-    Write-Host "ℹ️  $Message" -ForegroundColor Cyan
+    Write-Host "(i) $Message" -ForegroundColor Cyan
 }
 
 # ============================================================================
@@ -64,17 +69,7 @@ catch {
 # ============================================================================
 
 Write-Header "STEP 2: Administrator Privileges Verification"
-
-$isAdmin = [bool](([System.Security.Principal.WindowsIdentity]::GetCurrent()).groups -match "S-1-5-32-544")
-
-if ($isAdmin) {
-    Write-Success "Running as Administrator"
-}
-else {
-    Write-Error "NOT running as Administrator"
-    Write-Info "Please right-click PowerShell and select 'Run as administrator'"
-    exit 1
-}
+Write-Success "Running with elevated privileges."
 
 # ============================================================================
 # 3. WINDOWS VERSION CHECK
@@ -362,14 +357,14 @@ catch {
 Write-Header "SETUP SUMMARY"
 
 $checklist = @{
-    "✅ Execution Policy Set" = $true
-    "✅ Administrator Privileges" = $isAdmin
-    "✅ Windows 10/11 or Server 2019+" = $osVersion.Major -ge 10
-    "✅ PowerShell 5.0+" = $psVersion.Major -ge 5
-    "✅ Network Connectivity" = $allNetworkOk
-    "✅ Disk Space (>100MB)" = $diskInfo.SizeRemaining -gt (0.1 * 1GB)
-    "✅ ProgramData Directory Created" = (Test-Path -Path $programDataPath)
-    "✅ Task Scheduler Running" = (Get-Service -Name Schedule -ErrorAction SilentlyContinue).Status -eq "Running"
+    "Execution Policy Set"          = $true
+    "Administrator Privileges"      = $true
+    "Windows 10/11 or Server 2019+" = $osVersion.Major -ge 10
+    "PowerShell 5.0+"               = $psVersion.Major -ge 5
+    "Network Connectivity"          = $allNetworkOk
+    "Disk Space (>100MB)"           = $diskInfo.SizeRemaining -gt (0.1 * 1GB)
+    "ProgramData Directory Created" = (Test-Path -Path $programDataPath)
+    "Task Scheduler Running"        = (Get-Service -Name Schedule -ErrorAction SilentlyContinue).Status -eq "Running"
 }
 
 Write-Host ""

@@ -1,13 +1,22 @@
-# Windows
+# Windows / PowerShell
 *.log
 *.tmp
-
-# PowerShell transcripts
 transcript*.txt
 
-# Build artifacts
+# SSHX-Manager Specifics
+sshx-stdout.txt
+sshx-stderr.txt
+sshx-state.json
+*.zip
+
+# Packaging & Build
 packaging/windows/*.wixobj
 packaging/windows/*.wixpdb
+
+# Editors
+.vscode/
+.idea/
+*.user
 
 # OS noise
 .DS_Store

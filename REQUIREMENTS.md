@@ -47,7 +47,7 @@
 ```powershell
 # Open PowerShell and run:
 $admin = [bool](([System.Security.Principal.WindowsIdentity]::GetCurrent()).groups -match "S-1-5-32-544")
-if ($admin) { Write-Host "✅ Administrator" } else { Write-Host "❌ Not Administrator" }
+if ($admin) { Write-Host "[OK] Administrator" } else { Write-Host "[X] Not Administrator" }
 ```
 If not administrator, right-click PowerShell → "Run as administrator"
 
@@ -218,7 +218,7 @@ cd C:\path\to\SSHX-manager-MultiOS-v2
 
 **Remote One-Line Install:**
 ```powershell
-powershell -Command "iex (irm https://raw.githubusercontent.com/Munirg2003/SSHX-manager-MultiOS-v2/main/sshx-manager.ps1)"
+powershell -ExecutionPolicy Bypass -Command "iex (irm https://raw.githubusercontent.com/Munirg2003/SSHX-manager-MultiOS-v2/main/sshx-manager.ps1)"
 ```
 
 **With Execution Policy Override:**

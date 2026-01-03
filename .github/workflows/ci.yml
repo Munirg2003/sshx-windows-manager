@@ -7,13 +7,47 @@ on:
     branches: [ main ]
 
 jobs:
-  psscriptanalyzer:
+  powershell-analysis:
+    name: PSScriptAnalyzer
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Install PSScriptAnalyzer
+
+      - name: Run PSScriptAnalyzer
         shell: pwsh
-        run: Install-Module -Name PSScriptAnalyzer -Force -Scope CurrentUser
-      - name: Run Invoke-ScriptAnalyzer
-        shell: pwsh
-        run: Invoke-ScriptAnalyzer -Path . -Recurse -Severity Error
+        run: |
+          $results = Invoke-ScriptAnalyzer -Path . -Recurse -Severity Error
+          if ($results) {
+              $results | Format-Table -AutoSize
+              exit 1
+          }
+          Write-Host "No PSScriptAnalyzer errors found."
+
+  shellcheck:
+    name: ShellCheck (Linux/macOS)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run ShellCheck
+        run: |
+          # Check Linux script
+          if [ -d "linux" ]; then
+            shellcheck linux/*.sh || true
+          fi
+          # Check macOS script
+          if [ -d "macos" ]; then
+            shellcheck -s bash macos/*.zsh || true
+          fi
+
+  syntax-check:
+    name: PowerShell Syntax Check
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Verify SSHX Manager Syntax
+        shell: powershell
+        run: |
+          [scriptblock]::Create((Get-Content -Raw -Path "sshx-manager.ps1"))
+          Write-Host "Syntax check passed for sshx-manager.ps1"

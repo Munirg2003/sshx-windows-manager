@@ -9,17 +9,17 @@
 #>
 
 #Requires -Version 5.1
-#Requires -RunAsAdministrator
+
 
 # ============================================================================
 # CONFIGURATION
 # ============================================================================
-$ScriptVersion = "5.9.0"
+$ScriptVersion = "6.0.0"
 
 $WorkingDir = "$env:ProgramData\SSHX-Manager"
-$InstallDir = Join-Path ([Environment]::GetFolderPath("ProgramFilesX64")) "SSHX"
+$InstallDir = Join-Path $env:ProgramFiles "SSHX"
 
-if ([string]::IsNullOrWhiteSpace($InstallDir)) {
+if ([string]::IsNullOrWhiteSpace($env:ProgramFiles)) {
     $InstallDir = Join-Path ([Environment]::GetFolderPath("ProgramFiles")) "SSHX"
 }
 
@@ -27,12 +27,22 @@ $DownloadURL = "https://sshx.s3.amazonaws.com/sshx-x86_64-pc-windows-msvc.zip"
 $StateFile = "$WorkingDir\sshx-state.json"
 $TaskName = "SSHX-AutoStart"
 
+# ============================================================================
+# SELF-ELEVATION
+# ============================================================================
+if (!([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
+    $argList = @("-NoProfile", "-ExecutionPolicy Bypass", "-NoExit", "-File", "`"$PSCommandPath`"")
+    Start-Process powershell -ArgumentList $argList -Verb RunAs
+    exit
+}
+
 @($WorkingDir, $InstallDir) | ForEach-Object {
     if (!(Test-Path $_)) { 
         try {
             New-Item -Path $_ -ItemType Directory -Force | Out-Null
-        } catch {
-            Write-Error "❌ Failed to create directory $_ : $_"
+        }
+        catch {
+            Write-Error "[X] Failed to create directory $_ : $_"
             exit 1
         }
     }
@@ -49,13 +59,13 @@ function Write-Status {
 # ============================================================================
 function Get-SSHXState {
     $state = @{
-        IsInstalled = $false
-        IsRunning = $false
-        PIDs = @()
-        InstallPath = ""
-        Version = ""
-        LastDownloadCheck = ""
-        LastURL = ""
+        IsInstalled         = $false
+        IsRunning           = $false
+        PIDs                = @()
+        InstallPath         = ""
+        Version             = ""
+        LastDownloadCheck   = ""
+        LastURL             = ""
         ScheduledTaskStatus = "NotConfigured"
     }
     
@@ -67,7 +77,8 @@ function Get-SSHXState {
         try {
             $versionInfo = (Get-Item $exePath).VersionInfo
             $state.Version = $versionInfo.ProductVersion
-        } catch {
+        }
+        catch {
             $state.Version = "Unknown"
         }
     }
@@ -84,11 +95,13 @@ function Get-SSHXState {
         if ($task) {
             $state.ScheduledTaskStatus = $task.State.ToString()
             Write-Status "Scheduled task found: $($task.State)" "INFO"
-        } else {
+        }
+        else {
             $state.ScheduledTaskStatus = "NotConfigured"
             Write-Status "No scheduled task found" "INFO"
         }
-    } catch {
+    }
+    catch {
         $state.ScheduledTaskStatus = "Error"
         Write-Status "Error checking scheduled task: $_" "WARNING"
     }
@@ -98,7 +111,8 @@ function Get-SSHXState {
             $savedState = Get-Content $StateFile -Raw | ConvertFrom-Json
             $state.LastDownloadCheck = $savedState.LastDownloadCheck
             $state.LastURL = $savedState.LastURL
-        } catch {}
+        }
+        catch {}
     }
     
     return $state
@@ -112,7 +126,8 @@ function Save-SSHXState {
     
     try {
         $State | ConvertTo-Json | Set-Content $StateFile -Force
-    } catch {
+    }
+    catch {
         Write-Status "Failed to save state: $_" "ERROR"
     }
 }
@@ -120,31 +135,39 @@ function Save-SSHXState {
 function Show-CurrentStatus {
     $state = Get-SSHXState
     
-    Write-Host "`n╔══════════════════════════════════════════════════════════════╗" -ForegroundColor Cyan
-    Write-Host "║              SSHX.IO MANAGEMENT SYSTEM v$ScriptVersion              ║" -ForegroundColor Cyan
-    Write-Host "╚══════════════════════════════════════════════════════════════╝" -ForegroundColor Cyan
+    Write-Host "`n+--------------------------------------------------------------+" -ForegroundColor Cyan
+    Write-Host "|              SSHX.IO MANAGEMENT SYSTEM v$ScriptVersion              |" -ForegroundColor Cyan
+    Write-Host "+--------------------------------------------------------------+" -ForegroundColor Cyan
     
-    Write-Host "`n📋 STATUS OVERVIEW:" -ForegroundColor Cyan
-    Write-Host "Installation: $(if($state.IsInstalled){'✅ Installed'}else{'❌ Not Installed'})" -ForegroundColor $(if($state.IsInstalled){'Green'}else{'Red'})
-    Write-Host "Running: $(if($state.IsRunning){'✅ Yes (PID: '+($state.PIDs -join ', ')+')'}else{'❌ No'})" -ForegroundColor $(if($state.IsRunning){'Green'}else{'Red'})
+    Write-Host "`n[Status Overview]" -ForegroundColor Cyan
+    
+    $installText = if ($state.IsInstalled) { 'YES (Installed)' }else { 'NO (Not Installed)' }
+    $installColor = if ($state.IsInstalled) { 'Green' }else { 'Red' }
+    Write-Host "Installation: $installText" -ForegroundColor $installColor
+    
+    $runningText = if ($state.IsRunning) { 'YES (PID: ' + ($state.PIDs -join ', ') + ')' }else { 'NO' }
+    $runningColor = if ($state.IsRunning) { 'Green' }else { 'Red' }
+    Write-Host "Running: $runningText" -ForegroundColor $runningColor
     
     if ($state.IsInstalled) {
         Write-Host "Path: $($state.InstallPath)" -ForegroundColor Gray
         Write-Host "Version: $($state.Version)" -ForegroundColor Gray
         
-        # FIX: Display scheduled task status properly
+        # Display scheduled task status properly
         if ($state.ScheduledTaskStatus -eq "Ready" -or $state.ScheduledTaskStatus -eq "Running") {
-            Write-Host "Scheduled Task: ✅ Enabled ($($state.ScheduledTaskStatus))" -ForegroundColor Green
-        } elseif ($state.ScheduledTaskStatus -eq "NotConfigured") {
-            Write-Host "Scheduled Task: ❌ Not Configured" -ForegroundColor Gray
-        } else {
-            Write-Host "Scheduled Task: ⚠️ $($state.ScheduledTaskStatus)" -ForegroundColor Yellow
+            Write-Host "Scheduled Task: YES (Enabled: $($state.ScheduledTaskStatus))" -ForegroundColor Green
+        }
+        elseif ($state.ScheduledTaskStatus -eq "NotConfigured") {
+            Write-Host "Scheduled Task: NO (Not Configured)" -ForegroundColor Gray
+        }
+        else {
+            Write-Host "Scheduled Task: (!) $($state.ScheduledTaskStatus)" -ForegroundColor Yellow
         }
     }
     
     # Only show URL if SSHX is installed AND we have a captured URL
     if ($state.IsInstalled -and $state.LastURL) {
-        Write-Host "🔗 URL: $($state.LastURL)" -ForegroundColor Yellow
+        Write-Host "Link: $($state.LastURL)" -ForegroundColor Yellow
     }
     
     return $state
@@ -165,19 +188,19 @@ function Get-AntivirusStatus {
         $processes = Get-Process -Name $avProcess -ErrorAction SilentlyContinue
         if ($processes) {
             $null = $detectedAV.Add(@{
-                Name = $avProcess
-                DisplayName = switch($avProcess) {
-                    "MsMpEng" { "Windows Defender" }
-                    "NisSrv" { "Windows Defender Network" }
-                    "epredline" { "ESET" }
-                    "ekrn" { "ESET Service" }
-                    "avp" { "Kaspersky" }
-                    "avguard" { "Avira" }
-                    default { $avProcess }
-                }
-                PIDs = @($processes | ForEach-Object { $_.Id })
-                Running = $true
-            })
+                    Name        = $avProcess
+                    DisplayName = switch ($avProcess) {
+                        "MsMpEng" { "Windows Defender" }
+                        "NisSrv" { "Windows Defender Network" }
+                        "epredline" { "ESET" }
+                        "ekrn" { "ESET Service" }
+                        "avp" { "Kaspersky" }
+                        "avguard" { "Avira" }
+                        default { $avProcess }
+                    }
+                    PIDs        = @($processes | ForEach-Object { $_.Id })
+                    Running     = $true
+                })
             Write-Status "Detected: $($($detectedAV[-1]).DisplayName)" "WARNING"
         }
     }
@@ -213,13 +236,15 @@ function Stop-AntivirusServices {
             Start-Sleep -Seconds 2
             $defenderStillRunning = Get-Process -Name MsMpEng -ErrorAction SilentlyContinue
             if ($defenderStillRunning) {
-                Write-Status "⚠️ Defender still running, may need manual intervention" "WARNING"
-            } else {
-                $stoppedCount++
-                Write-Status "✅ Windows Defender stopped" "SUCCESS"
+                Write-Status "(!) Defender still running, may need manual intervention" "WARNING"
             }
-        } catch {
-            Write-Status "⚠️ Could not stop Defender: $_" "WARNING"
+            else {
+                $stoppedCount++
+                Write-Status "[OK] Windows Defender stopped" "SUCCESS"
+            }
+        }
+        catch {
+            Write-Status "(!) Could not stop Defender: $_" "WARNING"
         }
     }
     
@@ -232,9 +257,10 @@ function Stop-AntivirusServices {
                 }
                 Start-Sleep -Seconds 1
                 $stoppedCount++
-                Write-Status "✅ $($av.DisplayName) stopped" "SUCCESS"
-            } catch {
-                Write-Status "⚠️ Could not stop $($av.DisplayName): $_" "WARNING"
+                Write-Status "[OK] $($av.DisplayName) stopped" "SUCCESS"
+            }
+            catch {
+                Write-Status "(!) Could not stop $($av.DisplayName): $_" "WARNING"
             }
         }
     }
@@ -253,9 +279,10 @@ function Add-AntivirusExclusions {
             Add-MpPreference -ExclusionPath $path -ErrorAction SilentlyContinue -Force
         }
         Add-MpPreference -ExclusionProcess "sshx.exe" -ErrorAction SilentlyContinue -Force
-        Write-Status "✅ Defender exclusions configured" "SUCCESS"
-    } catch {
-        Write-Status "⚠️ Could not add Defender exclusions: $_" "WARNING"
+        Write-Status "[OK] Defender exclusions configured" "SUCCESS"
+    }
+    catch {
+        Write-Status "(!) Could not add Defender exclusions: $_" "WARNING"
     }
     
     Start-Sleep -Seconds 2
@@ -271,9 +298,10 @@ function Remove-AntivirusExclusions {
             Remove-MpPreference -ExclusionPath $path -ErrorAction SilentlyContinue
         }
         Remove-MpPreference -ExclusionProcess "sshx.exe" -ErrorAction SilentlyContinue
-        Write-Status "✅ Defender exclusions removed" "SUCCESS"
-    } catch {
-        Write-Status "⚠️ Could not remove Defender exclusions: $_" "WARNING"
+        Write-Status "[OK] Defender exclusions removed" "SUCCESS"
+    }
+    catch {
+        Write-Status "(!) Could not remove Defender exclusions: $_" "WARNING"
     }
 }
 
@@ -282,10 +310,11 @@ function Restore-AntivirusServices {
     
     try {
         Set-MpPreference -DisableRealtimeMonitoring $false -ErrorAction SilentlyContinue
-        Write-Status "✅ Antivirus protection restored" "SUCCESS"
+        Write-Status "[OK] Antivirus protection restored" "SUCCESS"
         return $true
-    } catch {
-        Write-Status "⚠️ Could not restore antivirus: $_" "WARNING"
+    }
+    catch {
+        Write-Status "(!) Could not restore antivirus: $_" "WARNING"
         return $false
     }
 }
@@ -330,21 +359,24 @@ function Add-SSHXScheduledTask {
         $task = Register-ScheduledTask -TaskName $TaskName -Action $action -Trigger $trigger -Principal $principal -Force
         
         if ($task) {
-            Write-Status "✅ Scheduled task created successfully" "SUCCESS"
+            Write-Status "[OK] Scheduled task created successfully" "SUCCESS"
             Write-Status "   Task: $TaskName | User: $currentUser | RunLevel: Highest" "INFO"
             
             # Verify task was created
             $verifiedTask = Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue
             if ($verifiedTask) {
-                Write-Status "✅ Task verified and ready" "SUCCESS"
+                Write-Status "[OK] Task verified and ready" "SUCCESS"
                 return $true
-            } else {
+            }
+            else {
                 throw "Task creation not verified"
             }
-        } else {
+        }
+        else {
             throw "Task registration returned null"
         }
-    } catch {
+    }
+    catch {
         Write-Status "❌ Failed to create scheduled task: $_" "ERROR"
         Write-Status "   Ensure you have permissions to create scheduled tasks" "WARNING"
         return $false
@@ -356,16 +388,17 @@ function Remove-SSHXScheduledTask {
     
     $task = Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue
     if (!$task) {
-        Write-Status "ℹ️ No scheduled task found" "INFO"
+        Write-Status "(i) No scheduled task found" "INFO"
         return $true
     }
     
     try {
         Unregister-ScheduledTask -TaskName $TaskName -Confirm:$false -ErrorAction Stop
-        Write-Status "✅ Scheduled task removed successfully" "SUCCESS"
+        Write-Status "[OK] Scheduled task removed successfully" "SUCCESS"
         return $true
-    } catch {
-        Write-Status "❌ Failed to remove scheduled task: $_" "ERROR"
+    }
+    catch {
+        Write-Status "[X] Failed to remove scheduled task: $_" "ERROR"
         return $false
     }
 }
@@ -377,7 +410,8 @@ function Test-InternetConnection {
     try {
         Invoke-WebRequest -Uri "https://sshx.io" -Method Head -TimeoutSec 5 -ErrorAction Stop
         return $true
-    } catch {
+    }
+    catch {
         return $false
     }
 }
@@ -420,9 +454,10 @@ function Install-SSHX {
         $avWasStopped = Stop-AntivirusServices $avStatus
         
         if ($avWasStopped) {
-            Write-Status "✅ Antivirus services stopped successfully" "SUCCESS"
-        } else {
-            Write-Status "⚠️ Some antivirus services could not be stopped" "WARNING"
+            Write-Status "[OK] Antivirus services stopped successfully" "SUCCESS"
+        }
+        else {
+            Write-Status "(!) Some antivirus services could not be stopped" "WARNING"
         }
         
         Add-AntivirusExclusions
@@ -458,7 +493,7 @@ function Install-SSHX {
             
             if (Test-Path $destinationPath) {
                 $versionInfo = (Get-Item $destinationPath).VersionInfo
-                Write-Status "✅ SSHX installed successfully" "SUCCESS"
+                Write-Status "[OK] SSHX installed successfully" "SUCCESS"
                 Write-Status "Version: $($versionInfo.ProductVersion)" "INFO"
                 
                 $newState = Get-SSHXState
@@ -472,7 +507,7 @@ function Install-SSHX {
                 
                 if ($avWasStopped) {
                     Write-Status "Restoring antivirus protection..." "INFO"
-                    Restore-AntivirusServices
+                    Restore-AntivirusServices | Out-Null
                 }
                 
                 # ENSURE: Create scheduled task after successful installation and start
@@ -481,23 +516,28 @@ function Install-SSHX {
                     $taskCreated = Add-SSHXScheduledTask
                     
                     if ($taskCreated) {
-                        Write-Status "🎉 Installation completed successfully with scheduled task!" "SUCCESS"
-                    } else {
-                        Write-Status "⚠️ Installation completed but scheduled task failed" "WARNING"
+                        Write-Status "(*) Installation completed successfully with scheduled task!" "SUCCESS"
                     }
-                } else {
-                    Write-Status "⚠️ SSHX started but may have issues" "WARNING"
+                    else {
+                        Write-Status "(!) Installation completed but scheduled task failed" "WARNING"
+                    }
+                }
+                else {
+                    Write-Status "(!) SSHX started but may have issues" "WARNING"
                 }
                 
                 return $true
-            } else {
+            }
+            else {
                 throw "Copy verification failed"
             }
-        } else {
+        }
+        else {
             throw "sshx.exe not found"
         }
         
-    } catch {
+    }
+    catch {
         Write-Status "Installation failed: $_" "ERROR"
         
         if ($avWasStopped) {
@@ -515,12 +555,12 @@ function Start-SSHXProcess {
     $state = Get-SSHXState
     
     if (!$state.IsInstalled) {
-        Write-Status "❌ SSHX not installed. Use Option 1 first" "ERROR"
+        Write-Status "[X] SSHX not installed. Use Option 1 first" "ERROR"
         return $false
     }
     
     if ($state.IsRunning) {
-        Write-Status "⚠️ SSHX already running (PID: $($state.PIDs -join ', '))" "WARNING"
+        Write-Status "(!) SSHX already running (PID: $($state.PIDs -join ', '))" "WARNING"
         return $true
     }
     
@@ -543,7 +583,7 @@ function Start-SSHXProcess {
             New-Item -Path $WorkingDir -ItemType Directory -Force | Out-Null
         }
         
-        $process = Start-Process -FilePath $sshxPath -PassThru -WindowStyle Normal `
+        Start-Process -FilePath $sshxPath -WindowStyle Normal `
             -RedirectStandardOutput $outputFile -RedirectStandardError $errorFile
         
         Start-Sleep -Seconds 5
@@ -561,7 +601,7 @@ function Start-SSHXProcess {
                     $newState.LastURL = $urls
                     Save-SSHXState $newState
                     
-                    Write-Status "✅ URLs captured and saved to state" "SUCCESS"
+                    Write-Status "[OK] URLs captured and saved to state" "SUCCESS"
                 }
             }
         }
@@ -573,15 +613,17 @@ function Start-SSHXProcess {
         $newState = Get-SSHXState
         
         if ($newState.IsRunning) {
-            Write-Status "✅ SSHX running (PID: $($newState.PIDs -join ', '))" "SUCCESS"
+            Write-Status "[OK] SSHX running (PID: $($newState.PIDs -join ', '))" "SUCCESS"
             return $true
-        } else {
-            Write-Status "⚠️ SSHX may have exited" "WARNING"
+        }
+        else {
+            Write-Status "(!) SSHX may have exited" "WARNING"
             return $false
         }
         
-    } catch {
-        Write-Status "❌ Failed to start SSHX: $_" "ERROR"
+    }
+    catch {
+        Write-Status "[X] Failed to start SSHX: $_" "ERROR"
         return $false
     }
 }
@@ -591,7 +633,7 @@ function Stop-SSHXProcess {
     $state = Get-SSHXState
     
     if (!$state.IsRunning) {
-        Write-Status "ℹ️ SSHX not running" "INFO"
+        Write-Status "(i) SSHX not running" "INFO"
         return $true
     }
     
@@ -601,9 +643,10 @@ function Stop-SSHXProcess {
         try {
             Write-Status "Stopping process $processId..." "INFO"
             Get-Process -Id $processId -ErrorAction Stop | Stop-Process -Force -ErrorAction Stop
-            Write-Status "✅ Process $processId stopped" "SUCCESS"
-        } catch {
-            Write-Status "❌ Failed to stop process ${processId}: $_" "ERROR"
+            Write-Status "[OK] Process $processId stopped" "SUCCESS"
+        }
+        catch {
+            Write-Status "[X] Failed to stop process ${processId}: $_" "ERROR"
         }
     }
     
@@ -611,10 +654,11 @@ function Stop-SSHXProcess {
     $newState = Get-SSHXState
     
     if (!$newState.IsRunning) {
-        Write-Status "✅ All processes stopped" "SUCCESS"
+        Write-Status "[OK] All processes stopped" "SUCCESS"
         return $true
-    } else {
-        Write-Status "⚠️ Some processes may still be running" "WARNING"
+    }
+    else {
+        Write-Status "(!) Some processes may still be running" "WARNING"
         return $false
     }
 }
@@ -624,40 +668,42 @@ function Get-SSHXURL {
     $state = Get-SSHXState
     
     if (!$state.IsInstalled) {
-        Write-Status "❌ SSHX not installed. Use Option 1 first" "ERROR"
+        Write-Status "[X] SSHX not installed. Use Option 1 first" "ERROR"
         return $false
     }
     
     # Only show URL if we have one captured
     if ($state.LastURL) {
-        Write-Status "✅ Found captured URL:" "SUCCESS"
+        Write-Status "[OK] Found captured URL:" "SUCCESS"
         Write-Host $state.LastURL -ForegroundColor Cyan
         return $true
     }
     
     if ($state.IsRunning) {
-        Write-Host "`nℹ️ SSHX is running" -ForegroundColor Cyan
+        Write-Host "`n(i) SSHX is running" -ForegroundColor Cyan
         Write-Status "URLs only available when SSHX first starts" "INFO"
-    } else {
-        Write-Host "`nℹ️ SSHX is not running" -ForegroundColor Yellow
+    }
+    else {
+        Write-Host "`n(i) SSHX is not running" -ForegroundColor Yellow
     }
     
     return $true
 }
 
-function Toggle-SSHXService {
+function Invoke-SSHXToggle {
     Write-Status "Toggling SSHX service..." "INFO"
     $state = Get-SSHXState
     
     if (!$state.IsInstalled) {
-        Write-Status "❌ SSHX not installed. Use Option 1 first!" "ERROR"
+        Write-Status "[X] SSHX not installed. Use Option 1 first!" "ERROR"
         return $false
     }
     
     if ($state.IsRunning) {
         Write-Status "SSHX is running. Stopping..." "INFO"
         return Stop-SSHXProcess
-    } else {
+    }
+    else {
         Write-Status "SSHX is stopped. Starting..." "INFO"
         return Start-SSHXProcess
     }
@@ -668,12 +714,12 @@ function Uninstall-SSHX {
     $state = Get-SSHXState
     
     if (!$state.IsInstalled) {
-        Write-Status "ℹ️ SSHX not installed. Nothing to uninstall." "INFO"
-        Write-Status "✅ System already clean" "SUCCESS"
+        Write-Status "(i) SSHX not installed. Nothing to uninstall." "INFO"
+        Write-Status "[OK] System already clean" "SUCCESS"
         return $true
     }
     
-    Write-Status "⚠️ Uninstalling SSHX and cleaning all components..." "WARNING"
+    Write-Status "(!) Uninstalling SSHX and cleaning all components..." "WARNING"
     Start-Sleep -Seconds 2
     
     Stop-SSHXProcess | Out-Null
@@ -683,22 +729,24 @@ function Uninstall-SSHX {
     if (Test-Path $InstallDir) {
         try {
             Remove-Item -Path $InstallDir -Recurse -Force -ErrorAction Stop
-            Write-Status "✅ Installation directory removed" "SUCCESS"
-        } catch {
-            Write-Status "⚠️ Could not remove install dir: $_" "WARNING"
+            Write-Status "[OK] Installation directory removed" "SUCCESS"
+        }
+        catch {
+            Write-Status "(!) Could not remove install dir: $_" "WARNING"
         }
     }
     
     if (Test-Path $WorkingDir) {
         try {
             Remove-Item -Path $WorkingDir -Recurse -Force -ErrorAction SilentlyContinue
-            Write-Status "✅ Working directory removed" "SUCCESS"
-        } catch {
-            Write-Status "⚠️ Could not remove working dir: $_" "WARNING"
+            Write-Status "[OK] Working directory removed" "SUCCESS"
+        }
+        catch {
+            Write-Status "(!) Could not remove working dir: $_" "WARNING"
         }
     }
     
-    Write-Status "🎉 SSHX completely uninstalled!" "SUCCESS"
+    Write-Status "(*) SSHX completely uninstalled!" "SUCCESS"
 }
 
 # ============================================================================
@@ -706,35 +754,36 @@ function Uninstall-SSHX {
 # ============================================================================
 function Show-MainMenu {
     Clear-Host
-    Write-Host "`n╔══════════════════════════════════════════════════════════════╗" -ForegroundColor Cyan
-    Write-Host "║              SSHX.IO MANAGEMENT SYSTEM v$ScriptVersion              ║" -ForegroundColor Cyan
-    Write-Host "╚══════════════════════════════════════════════════════════════╝" -ForegroundColor Cyan
+    Write-Host "`n+--------------------------------------------------------------+" -ForegroundColor Cyan
+    Write-Host "|              SSHX.IO MANAGEMENT SYSTEM v$ScriptVersion              |" -ForegroundColor Cyan
+    Write-Host "+--------------------------------------------------------------+" -ForegroundColor Cyan
     
-    $state = Get-SSHXState  # Gets fresh status every time
-    Write-Host "`n📋 Status: $(if($state.IsInstalled){'✅ Installed'}else{'❌ Not Installed'}) | $(if($state.IsRunning){'✅ Running (PID: '+($state.PIDs -join ', ')+')'}else{'❌ Stopped'})" -ForegroundColor White
+    $state = Get-SSHXState
+    $statusInstall = if ($state.IsInstalled) { 'YES (Installed)' }else { 'NO (Not Installed)' }
+    $statusRun = if ($state.IsRunning) { 'YES (PID: ' + ($state.PIDs -join ', ') + ')' }else { 'NO' }
+    Write-Host "`nStatus: $statusInstall | $statusRun" -ForegroundColor White
     
-    # FIX: Display scheduled task status in menu summary
     if ($state.ScheduledTaskStatus -eq "Ready" -or $state.ScheduledTaskStatus -eq "Running") {
-        Write-Host "📅 Task: ✅ Enabled ($($state.ScheduledTaskStatus))" -ForegroundColor Green
-    } else {
-        Write-Host "📅 Task: ❌ Not Configured" -ForegroundColor Gray
+        Write-Host "Task: YES (Enabled: $($state.ScheduledTaskStatus))" -ForegroundColor Green
+    }
+    else {
+        Write-Host "Task: NO (Not Configured)" -ForegroundColor Gray
     }
     
-    # Only show URL if installed and captured
     if ($state.IsInstalled -and $state.LastURL) {
-        Write-Host "🔗 URL: $($state.LastURL)" -ForegroundColor Yellow
+        Write-Host "Link: $($state.LastURL)" -ForegroundColor Yellow
     }
     
-    Write-Host "`n╔══════════════════════════════════════════════════════════════╗" -ForegroundColor Yellow
-    Write-Host "║                         MAIN MENU                            ║" -ForegroundColor Yellow
-    Write-Host "╠══════════════════════════════════════════════════════════════╣" -ForegroundColor Yellow
-    Write-Host "║  [1] 📥 Install SSHX & Auto-Configure (Full Pipeline)       ║" -ForegroundColor Green
-    Write-Host "║  [2] 📊 Check Status & Show URLs                             ║" -ForegroundColor Cyan
-    Write-Host "║  [3] 🔄 Start/Stop SSHX On-Demand                            ║" -ForegroundColor Magenta
-    Write-Host "║  [4] 🗑️  Uninstall SSHX (Complete Removal)                   ║" -ForegroundColor Red
-    Write-Host "║  [E] ❌ Exit (Keep SSHX Running)                             ║" -ForegroundColor Gray
-    Write-Host "║  [Q] ⏹️  Exit & Stop SSHX                                    ║" -ForegroundColor Red
-    Write-Host "╚══════════════════════════════════════════════════════════════╝" -ForegroundColor Yellow
+    Write-Host "`n+--------------------------------------------------------------+" -ForegroundColor Yellow
+    Write-Host "|                         MAIN MENU                            |" -ForegroundColor Yellow
+    Write-Host "+--------------------------------------------------------------+" -ForegroundColor Yellow
+    Write-Host "|  (1) (Install)   Install SSHX and Auto-Configure             |" -ForegroundColor Green
+    Write-Host "|  (2) (Status)    Check Status and Show URLs                  |" -ForegroundColor Cyan
+    Write-Host "|  (3) (Service)   Start/Stop SSHX On-Demand                   |" -ForegroundColor Magenta
+    Write-Host "|  (4) (Remove)    Uninstall SSHX (Complete Removal)           |" -ForegroundColor Red
+    Write-Host "|  (E) (Exit)      Exit (Keep SSHX Running)                    |" -ForegroundColor Gray
+    Write-Host "|  (Q) (Quit)      Exit and Stop SSHX                          |" -ForegroundColor Red
+    Write-Host "+--------------------------------------------------------------+" -ForegroundColor Yellow
     
     Write-Host "`nSelect option: " -NoNewline -ForegroundColor Yellow
     return Read-Host
@@ -744,16 +793,7 @@ function Show-MainMenu {
 # MAIN EXECUTION
 # ============================================================================
 Write-Status "Starting SSHX Manager v$ScriptVersion..." "INFO"
-
-$isAdmin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
-
-if (!$isAdmin) {
-    Write-Status "Administrator required. Restarting..." "WARNING"
-    Start-Process PowerShell -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$PSCommandPath`"" -Verb RunAs -Wait
-    exit
-}
-
-Write-Status "✅ Running with administrator privileges" "SUCCESS"
+Write-Status "[OK] Running with administrator privileges" "SUCCESS"
 
 try {
     do {
@@ -768,7 +808,7 @@ try {
                 Get-SSHXURL
             }
             "3" { 
-                Toggle-SSHXService
+                Invoke-SSHXToggle
             }
             "4" { 
                 Uninstall-SSHX
@@ -794,7 +834,8 @@ try {
         # Loop will continue immediately, showing fresh status at top
         
     } while ($true)
-} catch {
+}
+catch {
     Write-Status "FATAL ERROR: $_" "ERROR"
     Write-Status "Stack Trace: $($_.ScriptStackTrace)" "ERROR"
     exit 1
